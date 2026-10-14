@@ -1,0 +1,2 @@
+# Optional virtual Practice peer AES codec; core server works without bots.
+pycryptodome==3.23.0

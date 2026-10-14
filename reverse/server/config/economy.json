@@ -1,0 +1,13 @@
+{
+  "starting_game_points": 10000,
+  "starting_cash": 0,
+  "legacy_game_points": 999999999,
+  "legacy_cash": 999999999,
+  "enforce_level_requirements": true,
+  "match_base_xp": 150,
+  "match_base_game_points": 100,
+  "xp_multiplier": 2,
+  "game_points_multiplier": 2,
+  "minimum_match_seconds": 120,
+  "reward_practice": false
+}
