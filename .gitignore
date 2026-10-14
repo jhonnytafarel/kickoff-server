@@ -25,9 +25,9 @@ reverse/server/config/*.backup-*.json
 reverse/server/config/*.candidate.json
 
 # Original or generated client content is outside this source-only release.
-Bin/
-Data/
-Screenshots/
+/Bin/
+/Data/
+/Screenshots/
 *.exe
 *.dll
 *.xpk
