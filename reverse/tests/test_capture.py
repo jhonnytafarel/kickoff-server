@@ -149,7 +149,11 @@ class CaptureTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(TimeoutError):await asyncio.wait_for(reader.read(1),.1)
         # A later transfer on the same connection must acknowledge again.
         transfer=module.protocol.frame(0x20032,struct.pack('<ii',1,1)+bytes.fromhex('c0a838010000'))
-        expected_transfer=module.protocol.transfer_ack(1,1)
+        # The transfer request changes CLIENT_IP. Build the expected endpoint
+        # from the request, not the runner's hostname before it is processed.
+        relay_endpoint=bytes.fromhex('c0a83801')+(20001).to_bytes(2,'big')
+        expected_transfer=module.protocol.frame(0x20033,
+            struct.pack('<iiiB',-1,1,1,2)+relay_endpoint+b'\x02'+relay_endpoint)
         writer.write(transfer+info);await writer.drain()
         self.assertEqual(await asyncio.wait_for(reader.readexactly(len(expected_transfer+expected_ack)),2),expected_transfer+expected_ack)
         self.assertEqual(store.get(),character)
@@ -351,17 +355,31 @@ class CaptureTests(unittest.IsolatedAsyncioTestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.recorder = module.Recorder(self.temp.name)
         self.servers = []
+        self.client_writers = []
+        self.original_client_ip = module.netstate.CLIENT_IP
 
     async def asyncTearDown(self):
+        # Recent asyncio versions wait for active connections when closing a
+        # server. Release test clients even when an assertion failed first.
+        for writer in self.client_writers:
+            writer.close()
+        for writer in self.client_writers:
+            try:
+                await asyncio.wait_for(writer.wait_closed(), 2)
+            except (ConnectionError, OSError, TimeoutError):
+                pass
         for server in self.servers:
             server.close()
             await server.wait_closed()
+        module.netstate.CLIENT_IP = self.original_client_ip
         self.temp.cleanup()
 
     async def connect(self, callback):
         server = await asyncio.start_server(callback, '127.0.0.1', 0)
         self.servers.append(server)
-        return await asyncio.wait_for(asyncio.open_connection('127.0.0.1', server.sockets[0].getsockname()[1]), 5)
+        reader, writer = await asyncio.wait_for(asyncio.open_connection('127.0.0.1', server.sockets[0].getsockname()[1]), 5)
+        self.client_writers.append(writer)
+        return reader, writer
 
     async def test_unknown_auth_is_rejected_and_password_is_redacted(self):
         reader, writer = await self.connect(lambda r, w: module.capture_http(r, w, self.recorder, None))
